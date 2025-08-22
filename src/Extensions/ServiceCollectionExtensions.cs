@@ -13,7 +13,7 @@ public static class ServiceCollectionExtensions {
     /// </summary>
     /// <param name="services">The IServiceCollection to add the services to.</param>
     /// <returns>The updated IServiceCollection.</returns>
-    public static IServiceCollection AddLmStudioClient(this IServiceCollection services) {
+    public static IServiceCollection AddClient(this IServiceCollection services) {
         services.AddSingleton<LMSSettings>();
         services.AddScoped<ILmSharp, LmSharpClient>();
         return services;
@@ -25,7 +25,7 @@ public static class ServiceCollectionExtensions {
     /// <param name="services">The IServiceCollection to add the services to.</param>
     /// <param name="settings">The LMSSettings instance to register.</param>
     /// <returns>The updated IServiceCollection.</returns>
-    public static IServiceCollection AddLmStudioClient(this IServiceCollection services, LMSSettings settings) {
+    public static IServiceCollection AddClient(this IServiceCollection services, LMSSettings settings) {
         services.AddSingleton( settings );
         services.AddScoped<ILmSharp, LmSharpClient>();
         return services;
@@ -37,7 +37,7 @@ public static class ServiceCollectionExtensions {
     /// <param name="services">The IServiceCollection to add the services to.</param>
     /// <param name="configure">An action to configure the LMSSettings instance.</param>
     /// <returns>The updated IServiceCollection.</returns>
-    public static IServiceCollection AddLmStudioClient(this IServiceCollection services, Action<LMSSettings> configure) {
+    public static IServiceCollection AddClient(this IServiceCollection services, Action<LMSSettings> configure) {
         services.AddSingleton<LMSSettings>( provider => {
                 var settings = new LMSSettings();
                 configure( settings );
@@ -55,7 +55,7 @@ public static class ServiceCollectionExtensions {
     /// </summary>
     /// <param name="services">The IServiceCollection to add the services to.</param>
     /// <returns>The updated IServiceCollection.</returns>
-    public static IServiceCollection AddLmStudioService(this IServiceCollection services) {
+    public static IServiceCollection AddService(this IServiceCollection services) {
         services.AddSingleton<LMSSettings>();
         services.AddScoped<ILmSharp, LmSharpClient>();
         services.AddScoped<LmSharpService>();
@@ -68,7 +68,7 @@ public static class ServiceCollectionExtensions {
     /// <param name="services">The IServiceCollection to add the services to.</param>
     /// <param name="settings">The LMSSettings instance to register.</param>
     /// <returns>The updated IServiceCollection.</returns>
-    public static IServiceCollection AddLmStudioService(this IServiceCollection services, LMSSettings settings) {
+    public static IServiceCollection AddService(this IServiceCollection services, LMSSettings settings) {
         services.AddSingleton( settings );
         services.AddScoped<ILmSharp, LmSharpClient>();
         services.AddScoped<LmSharpService>();
@@ -81,7 +81,7 @@ public static class ServiceCollectionExtensions {
     /// <param name="services">The IServiceCollection to add the services to.</param>
     /// <param name="configure">An action to configure the LMSSettings instance.</param>
     /// <returns>The updated IServiceCollection.</returns>
-    public static IServiceCollection AddLmStudioService(this IServiceCollection services, Action<LMSSettings> configure) {
+    public static IServiceCollection AddService(this IServiceCollection services, Action<LMSSettings> configure) {
         services.AddSingleton<LMSSettings>( provider => {
                 var settings = new LMSSettings();
                 configure( settings );
@@ -100,7 +100,7 @@ public static class ServiceCollectionExtensions {
     /// </summary>
     /// <param name="services">The IServiceCollection to add the services to.</param>
     /// <returns>The updated IServiceCollection.</returns>
-    public static IServiceCollection AddLmStudioBackgroundService(this IServiceCollection services) {
+    public static IServiceCollection AddHostedService(this IServiceCollection services) {
         services.AddSingleton<LMSSettings>();
         services.AddScoped<ILmSharp, LmSharpClient>();
         services.AddHostedService<LMSHostedService>();
@@ -113,7 +113,7 @@ public static class ServiceCollectionExtensions {
     /// <param name="services">The IServiceCollection to add the services to.</param>
     /// <param name="settings">The LMSSettings instance to register.</param>
     /// <returns>The updated IServiceCollection.</returns>
-    public static IServiceCollection AddLmStudioBackgroundService(this IServiceCollection services, LMSSettings settings) {
+    public static IServiceCollection AddHostedService(this IServiceCollection services, LMSSettings settings) {
         services.AddSingleton( settings );
         services.AddScoped<ILmSharp, LmSharpClient>();
         services.AddHostedService<LMSHostedService>();
@@ -126,7 +126,7 @@ public static class ServiceCollectionExtensions {
     /// <param name="services">The IServiceCollection to add the services to.</param>
     /// <param name="configure">An action to configure the LMSSettings instance.</param>
     /// <returns>The updated IServiceCollection.</returns>
-    public static IServiceCollection AddLmStudioBackgroundService(this IServiceCollection services, Action<LMSSettings> configure) {
+    public static IServiceCollection AddHostedService(this IServiceCollection services, Action<LMSSettings> configure) {
         services.AddSingleton<LMSSettings>( provider => {
                 var settings = new LMSSettings();
                 configure( settings );

@@ -10,7 +10,7 @@ public static class DependencyInjectionExample {
     public static async Task RunBasicDiAsync() {
         // Setup dependency injection without hosting
         var services = new ServiceCollection();
-        services.AddLmStudioClient( settings => {
+        services.AddClient( settings => {
                 settings.BaseUrl = "http://localhost:1234/v1";
                 settings.DefaultModel = "your-model-here";
                 settings.RequestTimeout = TimeSpan.FromMinutes( 2 );

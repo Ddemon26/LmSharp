@@ -15,7 +15,7 @@ public static class BackgroundServiceExample {
         var hostBuilder = Host.CreateDefaultBuilder(args)
             .ConfigureServices((context, services) => {
                 // Register the LM Studio background service
-                services.AddLmStudioBackgroundService(settings => {
+                services.AddHostedService(settings => {
                     settings.BaseUrl = "http://127.0.0.1:1234";
                     settings.Timeout = TimeSpan.FromMinutes(5);
                 });
