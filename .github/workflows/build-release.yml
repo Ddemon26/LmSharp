@@ -74,6 +74,13 @@ jobs:
           name: ${{ env.REPO_NAME }}-Release-Zips
           path: ./*.zip
           retention-days: 30
+      - name: Upload nupkg if present
+        if: ${{ hashFiles('**/bin/Release/*.nupkg') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.REPO_NAME }}-NuGet
+          path: '**/bin/Release/*.nupkg'
+          retention-days: 30
 
   release:
     if: startsWith(github.ref, 'refs/tags/')
@@ -82,7 +89,6 @@ jobs:
     permissions:
       contents: write
     steps:
-      # 1) Create the Release FIRST (as draft), with notes — no files yet
       - name: Create (draft) GitHub Release
         uses: softprops/action-gh-release@v2
         env:
@@ -91,15 +97,17 @@ jobs:
           name: ${{ env.REPO_NAME }} ${{ github.ref_name }}
           generate_release_notes: true
           draft: true
-
-      # 2) Download artifacts produced by the build job
       - name: Download packaged zips
         uses: actions/download-artifact@v4
         with:
           name: ${{ env.REPO_NAME }}-Release-Zips
           path: ./release
-
-      # 3) Upload assets to the existing Release and publish it
+      - name: Download NuGet package artifact if available
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.REPO_NAME }}-NuGet
+          path: ./release
+        continue-on-error: true
       - name: Upload assets and publish Release
         uses: softprops/action-gh-release@v2
         env:
@@ -107,5 +115,13 @@ jobs:
         with:
           files: ./release/*.zip
           name: ${{ env.REPO_NAME }} ${{ github.ref_name }}
-          draft: false                # flips the release from draft -> published
+          draft: false
           fail_on_unmatched_files: true
+      - name: Upload nupkg if available
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          files: ./release/*.nupkg
+          name: ${{ env.REPO_NAME }} ${{ github.ref_name }}
+          fail_on_unmatched_files: false
