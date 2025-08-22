@@ -1,0 +1,37 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <PackageId>LmSharp</PackageId>
+        <Version>1.0.0</Version>
+        <Authors>LmStudioClient</Authors>
+        <Company>LmStudioClient</Company>
+        <Product>LmStudioClient</Product>
+        <Description>A lightweight .NET client library for interacting with LM Studio's local LLM server API. Supports chat completions, model management, structured output, and tool use.</Description>
+        <PackageTags>lmstudio;llm;ai;chat;client;local;api;openai-compatible</PackageTags>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageProjectUrl>https://github.com/Ddemon26/LmStudioClient</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/Ddemon26/LmStudioClient</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.8"/>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.8"/>
+        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.8"/>
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.8"/>
+        <PackageReference Include="System.Text.Json" Version="9.0.8"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="README.md" Pack="true" PackagePath="\"/>
+        <None Include="LICENSE" Pack="true" PackagePath="\"/>
+    </ItemGroup>
+
+</Project>

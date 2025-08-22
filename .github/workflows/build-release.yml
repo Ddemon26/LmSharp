@@ -1,0 +1,111 @@
+﻿name: .NET CI Build
+
+on:
+  push:
+    branches: [ master, main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ master, main ]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  REPO_NAME: ${{ github.event.repository.name }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+          cache: true
+          cache-dependency-path: |
+            **/*.csproj
+            global.json
+      - name: Resolve project path
+        shell: bash
+        run: |
+          set -euo pipefail
+          csproj="$(git ls-files '*.csproj' | grep -viE '\.Tests?\.csproj$' | head -n 1 || true)"
+          if [ -z "${csproj}" ] || [ ! -f "${csproj}" ]; then
+            echo "No project file found" >&2
+            exit 1
+          fi
+          echo "PROJECT_PATH=${csproj}" >> "$GITHUB_ENV"
+      - name: Restore dependencies
+        run: dotnet restore --nologo
+      - name: Build solution
+        run: dotnet build --no-restore --configuration Release --nologo
+      - name: Run tests
+        run: dotnet test --no-build --configuration Release --verbosity normal --nologo
+      - name: Publish and package artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          proj_dir="$(dirname "${PROJECT_PATH}")"
+          rids=(win-x64 linux-x64)
+          for rid in "${rids[@]}"; do
+            out_dir="./artifacts/${REPO_NAME}-${rid}"
+            dotnet publish "${PROJECT_PATH}" --configuration Release --runtime "${rid}" --self-contained true --output "${out_dir}" --nologo
+            [ -f "${proj_dir}/appsettings.json" ] && cp "${proj_dir}/appsettings.json" "${out_dir}" || true
+            [ -d libs ] && cp -r libs "${out_dir}" || true
+            [ -d plugins ] && cp -r plugins "${out_dir}" || true
+            [ -f LICENSE ] && cp LICENSE "${out_dir}" || true
+            [ -f README.md ] && cp README.md "${out_dir}" || true
+            (cd artifacts && zip -r "../${REPO_NAME}-${rid}.zip" "${REPO_NAME}-${rid}")
+          done
+      - name: Upload build artifacts (raw folders)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.REPO_NAME }}-Release-Folders
+          path: ./artifacts/${{ env.REPO_NAME }}-*/
+          retention-days: 30
+      - name: Upload packaged zips
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.REPO_NAME }}-Release-Zips
+          path: ./*.zip
+          retention-days: 30
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # 1) Create the Release FIRST (as draft), with notes — no files yet
+      - name: Create (draft) GitHub Release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          name: ${{ env.REPO_NAME }} ${{ github.ref_name }}
+          generate_release_notes: true
+          draft: true
+
+      # 2) Download artifacts produced by the build job
+      - name: Download packaged zips
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.REPO_NAME }}-Release-Zips
+          path: ./release
+
+      # 3) Upload assets to the existing Release and publish it
+      - name: Upload assets and publish Release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          files: ./release/*.zip
+          name: ${{ env.REPO_NAME }} ${{ github.ref_name }}
+          draft: false                # flips the release from draft -> published
+          fail_on_unmatched_files: true
