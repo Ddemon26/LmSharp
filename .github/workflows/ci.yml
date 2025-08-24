@@ -1,0 +1,138 @@
+﻿name: .NET CI Build
+
+on:
+  push:
+    branches: [ master, main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ master, main ]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  REPO_NAME: ${{ github.event.repository.name }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+          cache: true
+          cache-dependency-path: |
+            **/*.csproj
+            global.json
+
+      - name: Resolve & detect target frameworks
+        id: tfm
+        uses: ./.github/actions/detect-tfms
+
+      - name: Restore
+        run: dotnet restore --nologo
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release --nologo
+
+      - name: Test
+        run: dotnet test --no-build --configuration Release --verbosity normal --nologo
+
+      # Optional: creates nupkg if your csproj supports packing
+      - name: Pack (if configured)
+        run: dotnet pack --no-build --configuration Release --nologo || true
+
+      - name: Publish per TFM & RID
+        uses: ./.github/actions/publish-tfms
+        with:
+          project_path: ${{ steps.tfm.outputs.project_path }}
+          frameworks: ${{ steps.tfm.outputs.frameworks }}
+          rids: |
+            win-x64
+            linux-x64
+          repo_name: ${{ env.REPO_NAME }}
+          self_contained: true
+          copy_sidecars: |
+            appsettings.json
+            LICENSE
+            README.md
+          copy_dirs: |
+            libs
+            plugins
+
+      - name: Upload build artifacts (raw folders)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.REPO_NAME }}-Release-Folders
+          path: ./artifacts/${{ env.REPO_NAME }}-*/
+          retention-days: 30
+
+      - name: Upload packaged zips
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.REPO_NAME }}-Release-Zips
+          path: ./*.zip
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Upload nupkg if present
+        if: ${{ hashFiles('**/bin/Release/*.nupkg') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.REPO_NAME }}-NuGet
+          path: '**/bin/Release/*.nupkg'
+          retention-days: 30
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Create (draft) GitHub Release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          name: ${{ env.REPO_NAME }} ${{ github.ref_name }}
+          generate_release_notes: true
+          draft: true
+
+      - name: Download packaged zips
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.REPO_NAME }}-Release-Zips
+          path: ./release
+
+      - name: Download NuGet package artifact if available
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.REPO_NAME }}-NuGet
+          path: ./release
+        continue-on-error: true
+
+      - name: Upload assets and publish Release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          files: ./release/*.zip
+          name: ${{ env.REPO_NAME }} ${{ github.ref_name }}
+          draft: false
+          fail_on_unmatched_files: true
+
+      - name: Upload nupkg if available
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          files: ./release/*.nupkg
+          name: ${{ env.REPO_NAME }} ${{ github.ref_name }}
+          fail_on_unmatched_files: false

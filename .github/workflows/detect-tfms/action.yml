@@ -1,0 +1,43 @@
+﻿name: Detect .NET Target Frameworks
+description: Parse the primary .csproj and output its path and TargetFramework(s)
+inputs:
+  project_glob:
+    description: Glob to find the main project file
+    default: "**/*.csproj"
+outputs:
+  project_path:
+    description: Resolved project path
+    value: ${{ steps.resolve.outputs.project_path }}
+  frameworks:
+    description: Space-delimited list of target frameworks
+    value: ${{ steps.detect.outputs.frameworks }}
+runs:
+  using: "composite"
+  steps:
+    - id: resolve
+      shell: bash
+      run: |
+        set -euo pipefail
+        csproj="$(git ls-files '${{ inputs.project_glob }}' | grep -viE '\.Tests?\.csproj$' | head -n 1 || true)"
+        if [ -z "$csproj" ] || [ ! -f "$csproj" ]; then
+          echo "No project file found" >&2
+          exit 1
+        fi
+        echo "project_path=$csproj" >> "$GITHUB_OUTPUT"
+
+    - id: detect
+      shell: bash
+      run: |
+        set -euo pipefail
+        csproj="${{ steps.resolve.outputs.project_path }}"
+        tfms="$(grep -oP '(?<=<TargetFrameworks>).*?(?=</TargetFrameworks>)' "$csproj" || true)"
+        if [ -n "$tfms" ]; then
+          tfms="${tfms//;/ }"
+        else
+          tfms="$(grep -oP '(?<=<TargetFramework>).*?(?=</TargetFramework>)' "$csproj" || true)"
+        fi
+        if [ -z "$tfms" ]; then
+          echo "Could not detect TargetFramework(s) in $csproj" >&2
+          exit 1
+        fi
+        echo "frameworks=$tfms" >> "$GITHUB_OUTPUT"

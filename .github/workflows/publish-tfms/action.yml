@@ -1,0 +1,87 @@
+﻿name: Publish .NET per TFM & RID
+description: Publish a project for each runnable TFM and RID, zip outputs, copy sidecars/dirs
+inputs:
+  project_path:
+    description: Path to the .csproj
+    required: true
+  frameworks:
+    description: Space-delimited frameworks (e.g., "netstandard2.0 net8.0")
+    required: true
+  rids:
+    description: Newline-or-space delimited runtime identifiers
+    default: |
+      win-x64
+      linux-x64
+  repo_name:
+    description: Repository name for artifact labels
+    required: true
+  self_contained:
+    description: Whether to publish self-contained
+    default: "true"
+  copy_sidecars:
+    description: Newline-or-space list of files to copy if present (relative to project dir)
+    default: |
+      appsettings.json
+      LICENSE
+      README.md
+  copy_dirs:
+    description: Newline-or-space list of directories to copy if present (relative to repo root)
+    default: |
+      libs
+      plugins
+runs:
+  using: "composite"
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+        PROJECT_PATH="${{ inputs.project_path }}"
+        REPO_NAME="${{ inputs.repo_name }}"
+        mkdir -p artifacts
+        proj_dir="$(dirname "${PROJECT_PATH}")"
+
+        # Normalize whitespace to simple newlines
+        mapfile -t RID_ARR < <(echo "${{ inputs.rids }}" | tr ' ' '\n' | sed '/^$/d')
+        mapfile -t TFM_ARR < <(echo "${{ inputs.frameworks }}" | tr ' ' '\n' | sed '/^$/d')
+        mapfile -t SIDE_ARR < <(echo "${{ inputs.copy_sidecars }}" | tr ' ' '\n' | sed '/^$/d')
+        mapfile -t DIR_ARR < <(echo "${{ inputs.copy_dirs }}" | tr ' ' '\n' | sed '/^$/d')
+
+        for tfm in "${TFM_ARR[@]}"; do
+          case "$tfm" in
+            netstandard*|net4*) 
+              echo "Skipping publish for $tfm (library/desktop TFM)"
+              continue
+              ;;
+          esac
+
+          for rid in "${RID_ARR[@]}"; do
+            out_dir="./artifacts/${REPO_NAME}-${tfm}-${rid}"
+            echo "Publishing ${PROJECT_PATH} for ${tfm}/${rid} -> ${out_dir}"
+            dotnet publish "${PROJECT_PATH}" \
+              --configuration Release \
+              --framework "${tfm}" \
+              --runtime "${rid}" \
+              --self-contained "${{ inputs.self_contained }}" \
+              --output "${out_dir}" \
+              --nologo
+
+            # Copy sidecar files from project directory if they exist
+            for f in "${SIDE_ARR[@]}"; do
+              [ -z "$f" ] && continue
+              src="${proj_dir}/$f"
+              if [ -f "$src" ]; then
+                cp "$src" "${out_dir}/"
+              fi
+            done
+
+            # Copy optional directories from repo root if they exist
+            for d in "${DIR_ARR[@]}"; do
+              [ -z "$d" ] && continue
+              if [ -d "$d" ]; then
+                cp -r "$d" "${out_dir}/"
+              fi
+            done
+
+            (cd artifacts && zip -r "../${REPO_NAME}-${tfm}-${rid}.zip" "${REPO_NAME}-${tfm}-${rid}")
+          done
+        done
