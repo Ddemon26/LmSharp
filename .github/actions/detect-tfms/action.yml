@@ -1,8 +1,11 @@
 ﻿name: Detect .NET Target Frameworks
 description: Parse the primary .csproj and output its path and TargetFramework(s)
 inputs:
+  project_path:
+    description: Optional explicit path to the .csproj
+    required: false
   project_glob:
-    description: Glob to find the main project file
+    description: (Optional) glob hint; best-effort only
     default: "**/*.csproj"
 outputs:
   project_path:
@@ -18,11 +21,48 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        csproj="$(git ls-files '${{ inputs.project_glob }}' | grep -viE '\.Tests?\.csproj$' | head -n 1 || true)"
-        if [ -z "$csproj" ] || [ ! -f "$csproj" ]; then
-          echo "No project file found" >&2
+
+        # 1) Respect explicit override
+        if [ -n "${{ inputs.project_path }}" ]; then
+          csproj="${{ inputs.project_path }}"
+          if [ ! -f "$csproj" ]; then
+            echo "Provided project_path not found: $csproj" >&2
+            exit 1
+          fi
+          echo "Using explicit project_path: $csproj"
+          echo "project_path=$csproj" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        echo "Searching for .csproj files…"
+
+        # 2) Try git ls-files across repo (tracked files)
+        candidates="$(git ls-files | grep -iE '\.csproj$' || true)"
+
+        # 3) Fallback: search the working tree (untracked/checked-out-only)
+        if [ -z "$candidates" ]; then
+          candidates="$(find . -type f -name '*.csproj' -print | sed 's|^\./||' || true)"
+        fi
+
+        echo "All .csproj candidates:"
+        printf '%s\n' "$candidates"
+
+        # Filter out common test projects/paths
+        filtered="$(printf '%s\n' "$candidates" | grep -viE '(^|/)(tests?|test[s]?)/|\.Tests?\.csproj$' || true)"
+
+        # Prefer non-test; fallback to any .csproj if none remain
+        if [ -n "$filtered" ]; then
+          csproj="$(printf '%s\n' "$filtered" | head -n1)"
+        else
+          csproj="$(printf '%s\n' "$candidates" | head -n1)"
+        fi
+
+        if [ -z "${csproj:-}" ] || [ ! -f "$csproj" ]; then
+          echo "No project file found (tracked or untracked). If your project lives in a submodule, enable 'submodules: true' in actions/checkout or pass inputs.project_path." >&2
           exit 1
         fi
+
+        echo "Selected project: $csproj"
         echo "project_path=$csproj" >> "$GITHUB_OUTPUT"
 
     - id: detect
@@ -30,14 +70,19 @@ runs:
       run: |
         set -euo pipefail
         csproj="${{ steps.resolve.outputs.project_path }}"
+
+        # Extract <TargetFrameworks> or <TargetFramework>
         tfms="$(grep -oP '(?<=<TargetFrameworks>).*?(?=</TargetFrameworks>)' "$csproj" || true)"
         if [ -n "$tfms" ]; then
           tfms="${tfms//;/ }"
         else
           tfms="$(grep -oP '(?<=<TargetFramework>).*?(?=</TargetFramework>)' "$csproj" || true)"
         fi
+
         if [ -z "$tfms" ]; then
           echo "Could not detect TargetFramework(s) in $csproj" >&2
           exit 1
         fi
+
+        echo "Detected frameworks: $tfms"
         echo "frameworks=$tfms" >> "$GITHUB_OUTPUT"
