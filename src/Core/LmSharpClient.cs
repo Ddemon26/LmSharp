@@ -203,7 +203,12 @@ public class LmSharpClient : ILmSharp {
             response = await m_httpClient.PostAsJsonAsync( "chat/completions", streamingRequest, m_jsonOptions, cts.Token );
             response.EnsureSuccessStatusCode();
 
+            #if NETSTANDARD2_0
+            stream = await response.Content.ReadAsStreamAsync();
+            #elif NET6_0_OR_GREATER
             stream = await response.Content.ReadAsStreamAsync( cts.Token );
+            #endif
+            
             reader = new StreamReader( stream );
         }
         catch (HttpRequestException ex) {
@@ -227,10 +232,14 @@ public class LmSharpClient : ILmSharp {
 
         try {
             string? line;
-            while ((line = await reader.ReadLineAsync( cts.Token )) != null) {
+            #if NETSTANDARD2_0
+            while ((line = await reader.ReadLineAsync()) != null) { 
+            #elif NET6_0_OR_GREATER
+            while ((line = await reader.ReadLineAsync( cts.Token )) != null) {    
+            #endif
                 if ( string.IsNullOrWhiteSpace( line ) ) continue;
                 if ( line.StartsWith( "data: " ) ) {
-                    string jsonData = line[6..];
+                    string jsonData = line.Substring(6);
                     if ( jsonData == "[DONE]" ) break;
 
                     StreamingChatResponse? chunk = null;
